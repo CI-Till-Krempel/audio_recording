@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=audio_recording
+PRODUCT_BUNDLE_IDENTIFIER=de.cologneintelligence.audio_recording.audio_recording$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0
