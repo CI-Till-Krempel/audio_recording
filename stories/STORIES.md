@@ -10,7 +10,8 @@ This backlog is derived from `PRD.md` and grouped into epics. Each story include
   - AC
     - Tapping Record starts recording.
     - Elapsed time displays while recording.
-    - Stopping saves an audio file and exposes its path/metadata.
+    - Stopping exposes a file path/metadata.
+      - Note: For the A1 spike, a fake/placeholder recording is acceptable and may not write a real audio file. Real audio capture and persistent file saving are implemented in Epics B (Android) and C (iOS).
   - Dependencies: none
   - Risks: API churn; keep thin and adaptable.
   - Estimate: S
