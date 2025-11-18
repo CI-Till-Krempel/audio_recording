@@ -21,6 +21,7 @@ fun App() {
         val state by recorder.state.collectAsState()
         val scope = rememberCoroutineScope()
         var lastResult by remember { mutableStateOf<RecordingResult?>(null) }
+        var errorText by remember { mutableStateOf<String?>(null) }
 
         Column(
             modifier = Modifier
@@ -45,17 +46,36 @@ fun App() {
 
             Row(horizontalArrangement = Arrangement.Center) {
                 Button(
-                    onClick = { scope.launch { recorder.start(config = de.cologneintelligence.audio_recording.recorder.RecordingConfig()) } },
+                    onClick = {
+                        scope.launch {
+                            errorText = null
+                            val result = recorder.start(config = de.cologneintelligence.audio_recording.recorder.RecordingConfig())
+                            result.exceptionOrNull()?.let { errorText = it.message }
+                        }
+                    },
                     enabled = state is RecordingState.Idle || state is RecordingState.Error
                 ) { Text("Record") }
                 Spacer(Modifier.width(12.dp))
                 Button(
-                    onClick = { scope.launch { if (state is RecordingState.Recording) recorder.pause() else recorder.resume() } },
-                    enabled = state is RecordingState.Recording || state is RecordingState.Paused
+                    onClick = {
+                        scope.launch {
+                            errorText = null
+                            val res = if (state is RecordingState.Recording) recorder.pause() else recorder.resume()
+                            res.exceptionOrNull()?.let { errorText = it.message }
+                        }
+                    },
+                    enabled = (state is RecordingState.Recording || state is RecordingState.Paused) && recorder.capabilities.supportsPause
                 ) { Text(if (state is RecordingState.Recording) "Pause" else "Resume") }
                 Spacer(Modifier.width(12.dp))
                 Button(
-                    onClick = { scope.launch { lastResult = recorder.stop().getOrNull() } },
+                    onClick = {
+                        scope.launch {
+                            errorText = null
+                            val result = recorder.stop()
+                            result.onSuccess { lastResult = it }
+                            result.exceptionOrNull()?.let { errorText = it.message }
+                        }
+                    },
                     enabled = state is RecordingState.Recording || state is RecordingState.Paused
                 ) { Text("Stop") }
             }
@@ -73,6 +93,17 @@ fun App() {
             lastResult?.let { res ->
                 Text("Last file: ${res.uri}")
                 Text("Duration: ${formatElapsed(res.durationMs)}  Size: ${res.bytes} bytes")
+            }
+
+            // Error surface
+            val errorStateText = when (val s = state) {
+                is RecordingState.Error -> s.message
+                else -> null
+            }
+            val combinedError = errorText ?: errorStateText
+            if (combinedError != null) {
+                Spacer(Modifier.height(12.dp))
+                Text("Error: $combinedError", color = MaterialTheme.colorScheme.error)
             }
         }
     }

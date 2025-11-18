@@ -28,7 +28,10 @@ class FakeRecorder : Recorder {
     private var lastTickMark = TimeSource.Monotonic.markNow()
 
     override suspend fun start(config: RecordingConfig): Result<Unit> = runCatching {
-        if (_state.value is RecordingState.Recording || _state.value is RecordingState.Paused) return@runCatching
+        val current = _state.value
+        if (current !is RecordingState.Idle) {
+            error("Invalid transition: start() allowed only from Idle, was ${current::class.simpleName}")
+        }
         lastTickMark = TimeSource.Monotonic.markNow()
         _state.value = RecordingState.Recording(elapsedMs = 0)
         startTicker()
@@ -36,21 +39,23 @@ class FakeRecorder : Recorder {
 
     override suspend fun pause(): Result<Unit> = runCatching {
         val current = _state.value
-        if (current is RecordingState.Recording) {
-            val elapsed = elapsedSinceStart()
-            _state.value = RecordingState.Paused(elapsed)
-            stopTicker()
+        if (current !is RecordingState.Recording) {
+            error("Invalid transition: pause() allowed only from Recording, was ${current::class.simpleName}")
         }
+        val elapsed = elapsedSinceStart()
+        _state.value = RecordingState.Paused(elapsed)
+        stopTicker()
     }
 
     override suspend fun resume(): Result<Unit> = runCatching {
         val current = _state.value
-        if (current is RecordingState.Paused) {
-            // resume ticking from current elapsed; no change to startedAt
-            lastTickMark = TimeSource.Monotonic.markNow()
-            _state.value = RecordingState.Recording(current.elapsedMs)
-            startTicker()
+        if (current !is RecordingState.Paused) {
+            error("Invalid transition: resume() allowed only from Paused, was ${current::class.simpleName}")
         }
+        // resume ticking from current elapsed; no change to startedAt
+        lastTickMark = TimeSource.Monotonic.markNow()
+        _state.value = RecordingState.Recording(current.elapsedMs)
+        startTicker()
     }
 
     override suspend fun stop(): Result<RecordingResult> = runCatching {
@@ -58,7 +63,9 @@ class FakeRecorder : Recorder {
         val duration = when (current) {
             is RecordingState.Recording -> current.elapsedMs
             is RecordingState.Paused -> current.elapsedMs
-            else -> 0L
+            is RecordingState.Idle, is RecordingState.Error -> error(
+                "Invalid transition: stop() requires active session, was ${current::class.simpleName}"
+            )
         }
         stopTicker()
         _state.value = RecordingState.Idle
