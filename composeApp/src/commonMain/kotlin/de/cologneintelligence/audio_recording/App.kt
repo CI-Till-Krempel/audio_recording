@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 import de.cologneintelligence.audio_recording.recorder.createRecorder
 import de.cologneintelligence.audio_recording.recorder.RecordingResult
 import de.cologneintelligence.audio_recording.recorder.RecordingState
+import de.cologneintelligence.audio_recording.recorder.RecordingFile
+import de.cologneintelligence.audio_recording.recorder.listRecordings
 import de.cologneintelligence.audio_recording.playback.FakePlayer
 import de.cologneintelligence.audio_recording.playback.PlaybackState
 import kotlinx.coroutines.launch
@@ -26,6 +28,12 @@ fun App() {
         val scope = rememberCoroutineScope()
         var lastResult by remember { mutableStateOf<RecordingResult?>(null) }
         var errorText by remember { mutableStateOf<String?>(null) }
+        var recordings by remember { mutableStateOf<List<RecordingFile>>(emptyList()) }
+
+        // Load existing recordings on app start and keep only file listing-based state
+        LaunchedEffect(Unit) {
+            recordings = listRecordings().sortedByDescending { it.lastModifiedMillis }
+        }
 
         Column(
             modifier = Modifier
@@ -80,6 +88,8 @@ fun App() {
                                 lastResult = it
                                 // Load into player for A3 playback
                                 player.load(uri = it.uri, durationMs = it.durationMs)
+                                // Refresh recordings list from filesystem so new file shows up
+                                recordings = listRecordings().sortedByDescending { rf -> rf.lastModifiedMillis }
                             }
                             result.exceptionOrNull()?.let { errorText = it.message }
                         }
@@ -154,6 +164,19 @@ fun App() {
             if (combinedError != null) {
                 Spacer(Modifier.height(12.dp))
                 Text("Error: $combinedError", color = MaterialTheme.colorScheme.error)
+            }
+
+            // Recordings list (file listing based)
+            Spacer(Modifier.height(16.dp))
+            Text("Recordings:")
+            if (recordings.isEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text("No recordings found")
+            } else {
+                Spacer(Modifier.height(4.dp))
+                recordings.forEach { rf ->
+                    Text("• ${rf.name}  (${rf.bytes} bytes)")
+                }
             }
         }
     }
