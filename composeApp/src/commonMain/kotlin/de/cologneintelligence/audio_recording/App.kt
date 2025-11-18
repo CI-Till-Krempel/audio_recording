@@ -9,7 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import de.cologneintelligence.audio_recording.recorder.FakeRecorder
+import de.cologneintelligence.audio_recording.recorder.createRecorder
 import de.cologneintelligence.audio_recording.recorder.RecordingResult
 import de.cologneintelligence.audio_recording.recorder.RecordingState
 import de.cologneintelligence.audio_recording.playback.FakePlayer
@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun App() {
     MaterialTheme {
-        val recorder = remember { FakeRecorder() }
+        val recorder = remember { createRecorder() }
         val player = remember { FakePlayer() }
         val state by recorder.state.collectAsState()
         val pState by player.state.collectAsState()
