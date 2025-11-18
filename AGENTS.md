@@ -1,13 +1,6 @@
-### AGENTS: Lean Development Process
+### AGENTS: Lean Development Process (Agent‑Led, Single Maintainer)
 
-This document describes a lightweight, outcome‑oriented process for developing the Audio Recording KMP spike and its path to productization. It is optimized for speed, clarity, and evidence‑based decisions.
-
-#### 1. Roles (caps may be combined in a small team)
-- Product Lead: Owns PRD, prioritization, acceptance criteria, and outcomes.
-- Tech Lead: Owns architecture decisions, platform feasibility, and quality bar.
-- Platform Engineers (Android/iOS): Implement and validate platform specifics.
-- KMP Engineer: Shapes shared APIs and Compose Multiplatform UI.
-- QA (Lightweight): Defines sanity matrix; validates acceptance.
+This document defines a lightweight, outcome‑oriented process for the Audio Recording KMP spike executed by software agents with oversight from a single maintainer. It is optimized for speed, clarity, and evidence‑based decisions.
 
 #### 2. Operating Principles
 - Evidence over speculation: Ship spike code to real devices early and measure.
@@ -17,15 +10,23 @@ This document describes a lightweight, outcome‑oriented process for developing
 - Transparency: Capture key findings in PRD and DECISIONS.md (if needed) promptly.
 
 #### 3. Workflow
-1) Plan (60–90 minutes per iteration)
-- Review PRD goals and pick the next highest‑value stories.
-- Split into 1–2 day tasks with acceptance criteria.
+1) Plan
+- Agents read PRD goals and select the next highest‑value story.
+- Split into small tasks with explicit acceptance criteria.
 - Identify risks and the quickest validation path.
 
 2) Build
 - Implement the minimal vertical slice to validate the target.
 - Instrument with logs for observability during tests.
 - Feature‑flag or keep changes small and reversible.
+
+Commit policy:
+- Commit only when a story is complete according to its Definition of Done (DoD).
+- Each story completion commit must include a clear message summarizing:
+  - What was implemented (scope),
+  - Evidence of acceptance (e.g., “on-device test passed; playable file saved”),
+  - Any notable trade‑offs or follow‑ups.
+  Example: "C1 — iOS AVAudioRecorder implemented via Swift wrapper; start/stop verified on device; files saved to Caches/recordings; factory switched to IosRecorder."
 
 3) Verify
 - Run on at least one Android device (API 33–34) and one iOS device.
@@ -35,13 +36,10 @@ This document describes a lightweight, outcome‑oriented process for developing
 - Update PRD.md findings, risks, and recommendations.
 - Add short notes in a CHANGELOG or DECISIONS.md for non‑obvious tradeoffs.
 
-5) Demo & Decide
-- Short demo (≤10 min): show behavior, logs, and battery notes.
-- Decide: proceed, adjust scope, or pivot to fallback.
+Agents automatically attach logs, screenshots, and sample artefacts (e.g., audio files) to the story for maintainer review.
 
-#### 4. Branching, Reviews, CI
+#### 4. Branching & CI
 - Branching: `feat/<short-topic>` for dev; rebase on main frequently.
-- Reviews: 1 reviewer minimum; approve with screenshots/logs for behavior.
 - CI: Lint/build checks must pass; fast unit test suite when added.
 
 #### 5. Definition of Ready (DoR)
@@ -56,17 +54,12 @@ A story is Done when:
 - No crash in a 5–10 minute manual session.
 - PRD updated (if findings); code merged; optional feature flag off if safe.
 
-#### 7. Estimation & Cadence
-- Use T‑shirt sizes (XS ≤ 0.5d, S ≤ 1d, M ≤ 2d, L ≤ 4d). Avoid XL.
-- Cadence: 2–3 day micro‑iterations; weekly checkpoint with demo.
-
 #### 8. Quality & Risk Management
 - Manual sanity matrix: Android 26/30/34, iOS latest ‑ 1 where possible.
 - Log key events (start/pause/resume/stop, errors, battery %).
 - Early risk spikes: background/lock behavior, permissions, battery.
 
-#### 9. Communication
-- Daily async update: yesterday/today/blockers.
+#### 9. Artifacts
 - Keep artifacts close to code: PRD.md, DECISIONS.md, and README links.
 
 #### 10. Tooling

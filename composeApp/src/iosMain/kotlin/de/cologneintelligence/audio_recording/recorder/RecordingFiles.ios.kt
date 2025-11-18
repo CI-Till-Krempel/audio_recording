@@ -1,4 +1,4 @@
 package de.cologneintelligence.audio_recording.recorder
 
-// Spike: no iOS file persistence yet; return empty list for now.
+// iOS listing will be implemented alongside the Swift wrapper; for now return empty list to keep build stable.
 actual fun listRecordings(): List<RecordingFile> = emptyList()

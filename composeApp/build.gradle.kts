@@ -14,13 +14,50 @@ kotlin {
         }
     }
 
-    listOf(
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
+    val iosArm = iosArm64()
+    val iosSimArm = iosSimulatorArm64()
+
+    listOf(iosArm, iosSimArm).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
+        }
+
+        // K/N cinterop with ARAudioKit (Swift framework)
+        iosTarget.compilations.getByName("main") {
+            cinterops {
+                val ARAudioKit by creating {
+                    defFile(project.file("src/nativeInterop/cinterop/ARAudioKit.def"))
+
+                    // Prefer in-repo XCFramework at iosApp/ARAudioKit.xcframework
+                    val xcRoot = project.rootProject.file("iosApp/ARAudioKit.xcframework")
+                    val isSimulator = iosTarget.name.contains("Simulator", ignoreCase = true)
+                    if (xcRoot.exists()) {
+                        // Try common slice names and pick the first that contains the framework
+                        val candidates = if (isSimulator) listOf(
+                            "ios-arm64_x86_64-simulator",
+                            "ios-arm64-simulator",
+                            "ios-x86_64-simulator"
+                        ) else listOf(
+                            "ios-arm64"
+                        )
+                        val found: java.io.File? = candidates
+                            .map { project.file("${xcRoot.absolutePath}/$it") }
+                            .firstOrNull { dir -> project.file("${dir.absolutePath}/ARAudioKit.framework").exists() }
+                        if (found != null) {
+                            val fwkDir = found.absolutePath
+                            val headersDir = project.file("$fwkDir/ARAudioKit.framework/Headers").absolutePath
+                            // For cinterop header discovery we need both -F (framework) and -I (headers)
+                            compilerOpts("-F$fwkDir")
+                            compilerOpts("-I$headersDir")
+                            includeDirs(headersDir)
+                        }
+                    }
+
+                    // Enable modules for ObjC headers
+                    compilerOpts("-fmodules")
+                }
+            }
         }
     }
 

@@ -1,0 +1,32 @@
+//
+//  Config.xcconfig
+//  ARAudioKit
+//
+//  Created by Till Krempel on 18.11.25.
+//
+
+// Configuration settings file format documentation can be found at:
+// https://developer.apple.com/documentation/xcode/adding-a-build-configuration-file-to-your-project
+
+
+
+// ARAudioKit common settings
+PRODUCT_MODULE_NAME = ARAudioKit
+DEFINES_MODULE = YES
+SKIP_INSTALL = YES
+BUILD_LIBRARY_FOR_DISTRIBUTION = YES
+SWIFT_INSTALL_OBJC_HEADER = YES
+SWIFT_OBJC_INTERFACE_HEADER_NAME = ARAudioKit-Swift.h
+CLANG_ENABLE_MODULES = YES
+IPHONEOS_DEPLOYMENT_TARGET = 15.0
+SWIFT_VERSION = 5.0
+LD_RUNPATH_SEARCH_PATHS = $(inherited) @rpath
+
+//PRODUCT_MODULE_NAME=ARAudioKit
+//DEFINES_MODULE=Yes
+//SKIP_INSTALL=Yes
+//BUILD_LIBRARY_FOR_DISTRIBUTION=Yes
+//SWIFT_INSTALL_OBJC_HEADER=Yes
+//SWIFT_OBJC_INTERFACE_HEADER_NAME=ARAudioKit-Swift.h
+//IPHONEOS_DEPLOYMENT_TARGET=15.0
+//CLANG_ENABLE_MODULES=Yes

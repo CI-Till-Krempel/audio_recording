@@ -1,0 +1,12 @@
+package = araudiokit
+
+language = Objective-C
+
+# Reference the Swift-generated umbrella header; includeDirs are provided by Gradle.
+headers = ARAudioKit-Swift.h
+
+compilerOpts = -fmodules
+
+# Notes:
+# The build.gradle.kts will provide the appropriate -F (framework search path)
+# and -I (headers) per iOS target slice.
