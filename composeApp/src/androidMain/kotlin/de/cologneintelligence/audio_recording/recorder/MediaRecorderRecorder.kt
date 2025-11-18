@@ -63,6 +63,8 @@ class MediaRecorderRecorder(
         startedAt = System.currentTimeMillis()
         _state.value = RecordingState.Recording(0)
         startTicker()
+        // B2: Enter foreground to survive background/lock
+        RecordingForegroundService.start(context)
     }.onFailure { e ->
         _state.value = RecordingState.Error("Failed to start recording: ${e.message}", e)
         releaseRecorder()
@@ -108,6 +110,12 @@ class MediaRecorderRecorder(
     }.onFailure { e ->
         _state.value = RecordingState.Error("Failed to stop recording: ${e.message}", e)
         releaseRecorder()
+    }.also {
+        // Ensure foreground service stops regardless of success/failure
+        try {
+            RecordingForegroundService.stop(context)
+        } catch (_: Throwable) {
+        }
     }
 
     private fun startTicker() {

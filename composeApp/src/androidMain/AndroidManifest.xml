@@ -3,6 +3,11 @@
 
     <!-- Epic B1: microphone permission for recording audio -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Foreground service permissions (B2). Base + microphone type for API 34+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Optional but recommended on Android 13+ to show the ongoing notification -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
             android:allowBackup="true"
@@ -11,6 +16,11 @@
             android:roundIcon="@mipmap/ic_launcher_round"
             android:supportsRtl="true"
             android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <!-- B2: Foreground service to keep recording alive in background/lock screen -->
+        <service
+                android:name=".recorder.RecordingForegroundService"
+                android:exported="false"
+                android:foregroundServiceType="microphone" />
         <activity
                 android:exported="true"
                 android:name=".MainActivity">
