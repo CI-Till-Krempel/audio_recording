@@ -18,7 +18,9 @@ import java.util.Locale
 
 /**
  * Android implementation using [MediaRecorder].
- * Epic B1: Minimal start/stop supporting AAC in MPEG-4 (.m4a). Pause/Resume not supported yet.
+ * - B1: Start/Stop (AAC in MPEG-4 .m4a)
+ * - B2: Foreground service while recording
+ * - B3: Native Pause/Resume (API 24+)
  */
 class MediaRecorderRecorder(
     private val context: Context
@@ -29,12 +31,16 @@ class MediaRecorderRecorder(
     private val _state = MutableStateFlow<RecordingState>(RecordingState.Idle)
     override val state: StateFlow<RecordingState> = _state
 
-    override val capabilities: RecorderCapabilities = RecorderCapabilities(supportsPause = false)
+    // Min SDK is 24, where MediaRecorder.pause()/resume() are available
+    override val capabilities: RecorderCapabilities = RecorderCapabilities(supportsPause = true)
 
     private var tickerJob: Job? = null
     private var startedAt: Long = 0L
     private var mediaRecorder: MediaRecorder? = null
     private var outputFile: File? = null
+    // B3: Keep precise elapsed across pause/resume cycles
+    private var accumulatedElapsedMs: Long = 0L
+    private var activeStartAtMs: Long? = null
 
     override suspend fun start(config: RecordingConfig): Result<Unit> = runCatching {
         val current = _state.value
@@ -61,6 +67,8 @@ class MediaRecorderRecorder(
         mr.start()
 
         startedAt = System.currentTimeMillis()
+        accumulatedElapsedMs = 0L
+        activeStartAtMs = startedAt
         _state.value = RecordingState.Recording(0)
         startTicker()
         // B2: Enter foreground to survive background/lock
@@ -71,11 +79,37 @@ class MediaRecorderRecorder(
     }
 
     override suspend fun pause(): Result<Unit> = runCatching {
-        error("Pause not supported in B1; capabilities.supportsPause = false")
+        val current = _state.value
+        if (current !is RecordingState.Recording) {
+            error("Invalid transition: pause() allowed only from Recording, was ${current::class.simpleName}")
+        }
+        // Invoke native pause
+        mediaRecorder?.pause() ?: error("Recorder not initialized")
+        // Accumulate elapsed up to now
+        val now = System.currentTimeMillis()
+        val activeStart = activeStartAtMs ?: now
+        accumulatedElapsedMs += (now - activeStart).coerceAtLeast(0)
+        activeStartAtMs = null
+        stopTicker()
+        _state.value = RecordingState.Paused(accumulatedElapsedMs)
+        // Foreground service stays running while paused
+    }.onFailure { e ->
+        _state.value = RecordingState.Error("Failed to pause: ${e.message}", e)
     }
 
     override suspend fun resume(): Result<Unit> = runCatching {
-        error("Resume not supported in B1; capabilities.supportsPause = false")
+        val current = _state.value
+        if (current !is RecordingState.Paused) {
+            error("Invalid transition: resume() allowed only from Paused, was ${current::class.simpleName}")
+        }
+        // Invoke native resume
+        mediaRecorder?.resume() ?: error("Recorder not initialized")
+        activeStartAtMs = System.currentTimeMillis()
+        _state.value = RecordingState.Recording(accumulatedElapsedMs)
+        startTicker()
+        // Foreground continues to run from start()
+    }.onFailure { e ->
+        _state.value = RecordingState.Error("Failed to resume: ${e.message}", e)
     }
 
     override suspend fun stop(): Result<RecordingResult> = runCatching {
@@ -85,7 +119,14 @@ class MediaRecorderRecorder(
         }
         stopTicker()
         val end = System.currentTimeMillis()
-        val duration = (end - startedAt).coerceAtLeast(0)
+        val effectiveElapsed = when (_state.value) {
+            is RecordingState.Recording -> {
+                val activeStart = activeStartAtMs ?: end
+                accumulatedElapsedMs + (end - activeStart).coerceAtLeast(0)
+            }
+            is RecordingState.Paused -> accumulatedElapsedMs
+            else -> accumulatedElapsedMs
+        }
         try {
             mediaRecorder?.apply {
                 try {
@@ -104,7 +145,7 @@ class MediaRecorderRecorder(
             uri = f.absolutePath,
             startedAtMillis = startedAt,
             endedAtMillis = end,
-            durationMs = duration,
+            durationMs = effectiveElapsed,
             bytes = f.length()
         )
     }.onFailure { e ->
@@ -121,12 +162,17 @@ class MediaRecorderRecorder(
     private fun startTicker() {
         tickerJob?.cancel()
         tickerJob = scope.launch {
-            val startAt = startedAt
+            val getElapsed: () -> Long = {
+                val base = accumulatedElapsedMs
+                val start = activeStartAtMs
+                if (start != null) base + (System.currentTimeMillis() - start).coerceAtLeast(0)
+                else base
+            }
             while (true) {
                 delay(100)
                 val s = _state.value
                 if (s is RecordingState.Recording) {
-                    val elapsed = (System.currentTimeMillis() - startAt).coerceAtLeast(0)
+                    val elapsed = getElapsed()
                     _state.value = RecordingState.Recording(elapsed)
                 } else {
                     break
@@ -150,6 +196,7 @@ class MediaRecorderRecorder(
         } catch (_: Throwable) {
         }
         mediaRecorder = null
+        activeStartAtMs = null
     }
 
     fun close() {
