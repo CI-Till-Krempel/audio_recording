@@ -24,10 +24,14 @@ class RecordingForegroundService : android.app.Service() {
         val notification = buildNotification(this)
         // Notification ID must be stable so updates replace it
         startForeground(NOTIFICATION_ID, notification)
+        // B4 logging
+        RecorderSessionLogger.serviceStart()
         return START_STICKY
     }
 
     override fun onDestroy() {
+        // B4 logging
+        RecorderSessionLogger.serviceStop()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }

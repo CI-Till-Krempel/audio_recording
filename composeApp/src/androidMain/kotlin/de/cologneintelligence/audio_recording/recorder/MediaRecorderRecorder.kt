@@ -41,6 +41,9 @@ class MediaRecorderRecorder(
     // B3: Keep precise elapsed across pause/resume cycles
     private var accumulatedElapsedMs: Long = 0L
     private var activeStartAtMs: Long? = null
+    // B4: Acceptance logging/session tracking
+    private var sessionId: String? = null
+    private var batteryStartPct: Int? = null
 
     override suspend fun start(config: RecordingConfig): Result<Unit> = runCatching {
         val current = _state.value
@@ -73,9 +76,20 @@ class MediaRecorderRecorder(
         startTicker()
         // B2: Enter foreground to survive background/lock
         RecordingForegroundService.start(context)
+        // B4: Initialize session logging
+        sessionId = generateSessionId(name)
+        batteryStartPct = BatteryInfoProvider.getBatteryPercent(context)
+        RecorderSessionLogger.start(
+            sessionId = sessionId!!,
+            filePath = file.absolutePath,
+            sampleRate = config.sampleRateHz,
+            bitRate = config.bitRateBps,
+            batteryStart = batteryStartPct
+        )
     }.onFailure { e ->
         _state.value = RecordingState.Error("Failed to start recording: ${e.message}", e)
         releaseRecorder()
+        RecorderSessionLogger.error(sessionId, "start_failed: ${e.message}")
     }
 
     override suspend fun pause(): Result<Unit> = runCatching {
@@ -93,8 +107,11 @@ class MediaRecorderRecorder(
         stopTicker()
         _state.value = RecordingState.Paused(accumulatedElapsedMs)
         // Foreground service stays running while paused
+        sessionId?.let { RecorderSessionLogger.pause(it, accumulatedElapsedMs) }
+        Unit
     }.onFailure { e ->
         _state.value = RecordingState.Error("Failed to pause: ${e.message}", e)
+        RecorderSessionLogger.error(sessionId, "pause_failed: ${e.message}")
     }
 
     override suspend fun resume(): Result<Unit> = runCatching {
@@ -108,8 +125,11 @@ class MediaRecorderRecorder(
         _state.value = RecordingState.Recording(accumulatedElapsedMs)
         startTicker()
         // Foreground continues to run from start()
+        sessionId?.let { RecorderSessionLogger.resume(it, accumulatedElapsedMs) }
+        Unit
     }.onFailure { e ->
         _state.value = RecordingState.Error("Failed to resume: ${e.message}", e)
+        RecorderSessionLogger.error(sessionId, "resume_failed: ${e.message}")
     }
 
     override suspend fun stop(): Result<RecordingResult> = runCatching {
@@ -127,6 +147,7 @@ class MediaRecorderRecorder(
             is RecordingState.Paused -> accumulatedElapsedMs
             else -> accumulatedElapsedMs
         }
+        val fileRef = outputFile
         try {
             mediaRecorder?.apply {
                 try {
@@ -140,7 +161,19 @@ class MediaRecorderRecorder(
         }
         _state.value = RecordingState.Idle
 
-        val f = outputFile ?: error("No output file")
+        val f = fileRef ?: error("No output file")
+        // B4 logging for stop
+        val batteryEnd = BatteryInfoProvider.getBatteryPercent(context)
+        val batteryDelta = if (batteryStartPct != null && batteryEnd != null) batteryEnd - batteryStartPct!! else null
+        sessionId?.let {
+            RecorderSessionLogger.stop(
+                sessionId = it,
+                elapsedMs = effectiveElapsed,
+                bytes = f.length(),
+                batteryEnd = batteryEnd,
+                batteryDelta = batteryDelta
+            )
+        }
         RecordingResult(
             uri = f.absolutePath,
             startedAtMillis = startedAt,
@@ -151,6 +184,7 @@ class MediaRecorderRecorder(
     }.onFailure { e ->
         _state.value = RecordingState.Error("Failed to stop recording: ${e.message}", e)
         releaseRecorder()
+        RecorderSessionLogger.error(sessionId, "stop_failed: ${e.message}")
     }.also {
         // Ensure foreground service stops regardless of success/failure
         try {
@@ -203,5 +237,10 @@ class MediaRecorderRecorder(
         stopTicker()
         releaseRecorder()
         scope.cancel()
+    }
+
+    private fun generateSessionId(timestampPart: String): String {
+        val rand = (0..0xFFFF).random()
+        return "${timestampPart}-${rand.toString(16).padStart(4, '0')}"
     }
 }
