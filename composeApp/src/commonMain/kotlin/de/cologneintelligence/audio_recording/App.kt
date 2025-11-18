@@ -12,13 +12,17 @@ import androidx.compose.ui.unit.dp
 import de.cologneintelligence.audio_recording.recorder.FakeRecorder
 import de.cologneintelligence.audio_recording.recorder.RecordingResult
 import de.cologneintelligence.audio_recording.recorder.RecordingState
+import de.cologneintelligence.audio_recording.playback.FakePlayer
+import de.cologneintelligence.audio_recording.playback.PlaybackState
 import kotlinx.coroutines.launch
 
 @Composable
 fun App() {
     MaterialTheme {
         val recorder = remember { FakeRecorder() }
+        val player = remember { FakePlayer() }
         val state by recorder.state.collectAsState()
+        val pState by player.state.collectAsState()
         val scope = rememberCoroutineScope()
         var lastResult by remember { mutableStateOf<RecordingResult?>(null) }
         var errorText by remember { mutableStateOf<String?>(null) }
@@ -72,7 +76,11 @@ fun App() {
                         scope.launch {
                             errorText = null
                             val result = recorder.stop()
-                            result.onSuccess { lastResult = it }
+                            result.onSuccess {
+                                lastResult = it
+                                // Load into player for A3 playback
+                                player.load(uri = it.uri, durationMs = it.durationMs)
+                            }
                             result.exceptionOrNull()?.let { errorText = it.message }
                         }
                     },
@@ -82,17 +90,59 @@ fun App() {
 
             Spacer(Modifier.height(16.dp))
 
+            // Playback controls (A3)
             Row(horizontalArrangement = Arrangement.Center) {
                 Button(
-                    onClick = { /* TODO(A3): implement playback for lastResult */ },
-                    enabled = lastResult != null
+                    onClick = {
+                        scope.launch {
+                            errorText = null
+                            // If completed, play() restarts from 0 as per FakePlayer
+                            val res = player.play()
+                            res.exceptionOrNull()?.let { errorText = it.message }
+                        }
+                    },
+                    enabled = lastResult != null && (pState is PlaybackState.Paused || pState is PlaybackState.Completed)
                 ) { Text("Play") }
+                Spacer(Modifier.width(12.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            errorText = null
+                            val res = player.pause()
+                            res.exceptionOrNull()?.let { errorText = it.message }
+                        }
+                    },
+                    enabled = pState is PlaybackState.Playing
+                ) { Text("Pause" ) }
+                Spacer(Modifier.width(12.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            errorText = null
+                            val res = player.stop()
+                            res.exceptionOrNull()?.let { errorText = it.message }
+                        }
+                    },
+                    enabled = pState is PlaybackState.Playing || pState is PlaybackState.Paused
+                ) { Text("Stop") }
             }
 
             Spacer(Modifier.height(12.dp))
             lastResult?.let { res ->
                 Text("Last file: ${res.uri}")
                 Text("Duration: ${formatElapsed(res.durationMs)}  Size: ${res.bytes} bytes")
+            }
+
+            // Playback position/status
+            val playbackText = when (val ps = pState) {
+                is PlaybackState.Playing -> "Playing: ${formatElapsed(ps.positionMs)} / ${formatElapsed(ps.durationMs)}"
+                is PlaybackState.Paused -> "Paused: ${formatElapsed(ps.positionMs)} / ${formatElapsed(ps.durationMs)}"
+                is PlaybackState.Completed -> "Completed"
+                else -> null
+            }
+            playbackText?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it)
             }
 
             // Error surface
